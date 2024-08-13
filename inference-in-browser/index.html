@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>
+      ONNX Runtime JavaScript examples: Quick Start - Web (using script tag)
+    </title>
+  </head>
+  <body>
+    <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/onnx-proto@4.0.4/onnx-proto.min.js"></script>
+    <script>
+      async function createSoftmaxModel(inputLength) {
+        const modelJson = {
+          irVersion: "3",
+          producerName: "onnx-example",
+          graph: {
+            node: [
+              {
+                input: ["input"],
+                output: ["output"],
+                opType: "Softmax",
+              },
+            ],
+            input: [
+              {
+                name: "input",
+                type: {
+                  tensorType: {
+                    elemType: 1,
+                    shape: {
+                      dim: [
+                        { dimValue: "1" },
+                        { dimValue: inputLength.toString() },
+                      ],
+                    },
+                  },
+                },
+              },
+            ],
+            output: [
+              {
+                name: "output",
+                type: {
+                  tensorType: {
+                    elemType: 1,
+                    shape: {
+                      dim: [
+                        { dimValue: "1" },
+                        { dimValue: inputLength.toString() },
+                      ],
+                    },
+                  },
+                },
+              },
+            ],
+          },
+        };
+
+        // Convert the model JSON to a buffer
+        const modelProto = onnx.ModelProto.fromObject(modelJson);
+        const modelBuffer = modelProto.serialize();
+
+        return await ort.InferenceSession.create(modelBuffer);
+      }
+
+      async function main() {
+        try {
+          // Create the main session
+          const session = await ort.InferenceSession.create("./makemore.onnx");
+
+          const tensorA = new ort.Tensor(
+            "int64",
+            [0, 0, 0, 0, 0, 0, 0, 0],
+            [1, 8]
+          );
+
+          // Prepare feeds. use model input names as keys.
+          const feeds = { arg0: tensorA };
+
+          // Feed inputs and run
+          const results = await session.run(feeds);
+
+          console.log("Original results:", results);
+
+          // Read from results
+          const dataC = results["all_layers_1"]["data"];
+          console.log("Original data:", dataC);
+
+          // Create softmax model
+          const softmaxSession = await createSoftmaxModel(dataC.length);
+
+          // Prepare input for softmax
+          const softmaxInput = new ort.Tensor("float32", dataC, [
+            1,
+            dataC.length,
+          ]);
+
+          // Run softmax
+          const softmaxResults = await softmaxSession.run({
+            input: softmaxInput,
+          });
+
+          console.log("Softmax results:", softmaxResults);
+          console.log("Softmax data:", softmaxResults.output.data);
+        } catch (e) {
+          console.error(`Failed to inference ONNX model: ${e}`);
+        }
+      }
+
+      main();
+    </script>
+  </body>
+</html>
